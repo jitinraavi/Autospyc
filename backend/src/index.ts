@@ -2,9 +2,20 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { db } from './db';
 
 const app = express();
+
+app.use(helmet());
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Too many requests from this IP, please try again later.'
+});
+app.use(limiter);
+
 app.use(cors());
 app.use(express.json());
 
@@ -76,11 +87,13 @@ app.post('/api/login', async (req, res) => {
 
 // --- CUSTOMER APIs ---
 // Search vendors/services
-app.get('/api/search', auth, async (req, res) => {
+app.get('/api/search', auth, async (req: any, res) => {
     try {
         const query = req.query.q as string || '';
         const vtype = req.query.vtype as string || '';
-        // In a real app we'd calculate distance based on lat/lng. For now just search by name.
+        const userLat = parseFloat(req.query.lat as string) || req.user.lat || 0;
+        const userLng = parseFloat(req.query.lng as string) || req.user.lng || 0;
+
         let sql = `
             SELECT s.*, u.name as vendor_name, u.lat, u.lng, u.slots_per_day 
             FROM services s 
@@ -94,8 +107,42 @@ app.get('/api/search', auth, async (req, res) => {
             params.push(vtype);
         }
 
-        const services = await getQuery(sql, params);
+        let services = await getQuery(sql, params);
+
+        // Calculate distance using Haversine formula
+        const toRad = (value: number) => value * Math.PI / 180;
+        services = services.map(s => {
+            if (!s.lat || !s.lng) return { ...s, distance: Infinity };
+            const R = 6371; // km
+            const dLat = toRad(s.lat - userLat);
+            const dLon = toRad(s.lng - userLng);
+            const lat1 = toRad(userLat);
+            const lat2 = toRad(s.lat);
+
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            const d = R * c;
+            return { ...s, distance: Math.round(d * 10) / 10 };
+        }).sort((a, b) => a.distance - b.distance);
+
         res.json(services);
+    } catch (e: any) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+app.get('/api/parts', auth, async (req: any, res) => {
+    try {
+        const query = req.query.q as string || '';
+        const parts = await getQuery(`
+            SELECT p.*, u.name as distributor_name 
+            FROM parts p 
+            JOIN users u ON p.distributor_id = u.id 
+            WHERE p.name LIKE ? OR p.description LIKE ?`, 
+            [`%${query}%`, `%${query}%`]
+        );
+        res.json(parts);
     } catch (e: any) {
         res.status(400).json({ error: e.message });
     }

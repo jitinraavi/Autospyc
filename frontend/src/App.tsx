@@ -79,6 +79,10 @@ const CustomerDashboard = () => {
     const [services, setServices] = useState<any[]>([]);
     const [bookings, setBookings] = useState<any[]>([]);
 
+    // retail parts state
+    const [partSearch, setPartSearch] = useState('');
+    const [retailParts, setRetailParts] = useState<any[]>([]);
+
     const fetchBookings = async () => {
         try {
             const res = await axios.get(`${API_URL}/customer/bookings`, {
@@ -88,16 +92,44 @@ const CustomerDashboard = () => {
         } catch (err) { console.error(err); }
     };
 
-    useEffect(() => { fetchBookings(); }, []);
+    const fetchParts = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/parts?q=${partSearch}`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setRetailParts(res.data);
+        } catch (err) { console.error(err); }
+    };
+
+    const buyPart = async (part: any) => {
+        alert(`You purchased ${part.name} for $${part.price}! (Checkout flow would be here)`);
+    };
+
+    useEffect(() => { 
+        fetchBookings(); 
+        fetchParts();
+    }, []);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
-        try {
-            const res = await axios.get(`${API_URL}/search?q=${search}&vtype=${vtype}`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-            });
-            setServices(res.data);
-        } catch (err) { console.error(err); }
+        
+        const performSearch = async (lat = 0, lng = 0) => {
+            try {
+                const res = await axios.get(`${API_URL}/search?q=${search}&vtype=${vtype}&lat=${lat}&lng=${lng}`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                });
+                setServices(res.data);
+            } catch (err) { console.error(err); }
+        };
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => performSearch(pos.coords.latitude, pos.coords.longitude),
+                () => performSearch() // fallback if user denies GPS
+            );
+        } else {
+            performSearch();
+        }
     };
 
     const bookAppointment = async (service: any) => {
@@ -143,7 +175,7 @@ const CustomerDashboard = () => {
                             <div>
                                 <h3 className="font-bold text-lg">{s.name} ({s.vehicle_type || 'both'})</h3>
                                 <p className="text-sm text-gray-600">{s.description}</p>
-                                <p className="text-sm font-semibold mt-2">Workshop: {s.vendor_name}</p>
+                                <p className="text-sm font-semibold mt-2">Workshop: {s.vendor_name} {s.distance !== undefined && s.distance !== null && s.distance !== Infinity && <span className="text-blue-500">({s.distance} km away)</span>}</p>
                                 <p className="text-sm">Price: ${s.price} | Time: {s.time_taken_minutes} mins</p>
                             </div>
                             <button onClick={() => bookAppointment(s)} className="bg-green-500 text-white px-4 py-2 rounded">Book</button>
@@ -152,17 +184,38 @@ const CustomerDashboard = () => {
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded shadow">
-                <h2 className="text-xl font-bold mb-4">My Bookings</h2>
-                <ul>
-                    {bookings.map(b => (
-                        <li key={b.id} className="border-b py-2 flex justify-between">
-                            <span><strong>{b.service_name}</strong> at {b.vendor_name} ({b.date} {b.slot_time})</span>
-                            <span className={`px-2 py-1 rounded text-white text-xs ${b.status === 'pending' ? 'bg-yellow-500' : b.status === 'accepted' ? 'bg-green-500' : 'bg-red-500'}`}>{b.status.toUpperCase()}</span>
-                        </li>
-                    ))}
-                </ul>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div className="bg-white p-6 rounded shadow">
+                    <h2 className="text-xl font-bold mb-4">My Bookings</h2>
+                    <ul>
+                        {bookings.map(b => (
+                            <li key={b.id} className="border-b py-2 flex justify-between">
+                                <span><strong>{b.service_name}</strong> at {b.vendor_name} ({b.date} {b.slot_time})</span>
+                                <span className={`px-2 py-1 rounded text-white text-xs ${b.status === 'pending' ? 'bg-yellow-500' : b.status === 'accepted' ? 'bg-green-500' : 'bg-red-500'}`}>{b.status.toUpperCase()}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+                
+                <div className="bg-white p-6 rounded shadow">
+                    <h2 className="text-xl font-bold mb-4">Parts & Spares Store</h2>
+                    <form onSubmit={e => { e.preventDefault(); fetchParts(); }} className="flex gap-4 mb-4">
+                        <input type="text" placeholder="Search parts..." className="flex-1 p-2 border rounded" value={partSearch} onChange={e => setPartSearch(e.target.value)} />
+                        <button type="submit" className="bg-purple-500 text-white px-4 py-2 rounded">Search</button>
+                    </form>
+                    <div className="grid gap-4 max-h-96 overflow-y-auto">
+                        {retailParts.map(p => (
+                            <div key={p.id} className="border p-4 rounded flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-bold">{p.name} ({p.vehicle_type || 'both'})</h3>
+                                    <p className="text-sm text-gray-600">{p.description}</p>
+                                    <p className="text-sm font-semibold mt-1">Price: ${p.price}</p>
+                                </div>
+                                <button onClick={() => buyPart(p)} className="bg-green-600 text-white px-4 py-2 rounded text-sm">Buy</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
         </div>
     );
 };
@@ -173,28 +226,36 @@ const VendorDashboard = () => {
     const [bookings, setBookings] = useState<any[]>([]);
     const [parts, setParts] = useState<any[]>([]);
     const [slots, setSlots] = useState<any>(null);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
     const [newService, setNewService] = useState({ name: '', description: '', price: 0, time_taken_minutes: 30 });
 
     const token = localStorage.getItem('token');
     const headers = { Authorization: `Bearer ${token}` };
 
-    const fetchData = async () => {
+    const fetchSlots = async (date: string) => {
         try {
-            const [srvRes, bkgRes, partsRes, slotsRes] = await Promise.all([
-                axios.get(`${API_URL}/vendor/services`, { headers }),
-                axios.get(`${API_URL}/vendor/bookings`, { headers }),
-                axios.get(`${API_URL}/b2b/parts`, { headers }),
-                axios.get(`${API_URL}/vendor/slots/${new Date().toISOString().split('T')[0]}`, { headers })
-            ]);
-            setServices(srvRes.data);
-            setBookings(bkgRes.data);
-            setParts(partsRes.data);
+            const slotsRes = await axios.get(`${API_URL}/vendor/slots/${date}`, { headers });
             setSlots(slotsRes.data);
         } catch (err) { console.error(err); }
     };
 
+    const fetchData = async () => {
+        try {
+            const [srvRes, bkgRes, partsRes] = await Promise.all([
+                axios.get(`${API_URL}/vendor/services`, { headers }),
+                axios.get(`${API_URL}/vendor/bookings`, { headers }),
+                axios.get(`${API_URL}/b2b/parts`, { headers })
+            ]);
+            setServices(srvRes.data);
+            setBookings(bkgRes.data);
+            setParts(partsRes.data);
+            fetchSlots(selectedDate);
+        } catch (err) { console.error(err); }
+    };
+
     useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchSlots(selectedDate); }, [selectedDate]);
 
     const handleAddService = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -208,6 +269,13 @@ const VendorDashboard = () => {
         fetchData();
     };
 
+    const modifyBookingTime = async (id: number) => {
+        const newTime = prompt("Enter new time (HH:MM) to propose:");
+        if (!newTime) return;
+        // In a real app we'd have a specific endpoint for rescheduling, for now we can simulate
+        alert(`Booking #${id} proposed reschedule to ${newTime}`);
+    };
+
     const orderPart = async (part: any) => {
         const qty = prompt(`Enter quantity (Min: ${part.min_order_req}):`, part.min_order_req.toString());
         if (!qty) return;
@@ -219,12 +287,17 @@ const VendorDashboard = () => {
         <div className="p-8">
             <h1 className="text-3xl font-bold mb-6">Vendor Dashboard</h1>
             
-            {slots && (
-                <div className="mb-6 p-4 bg-blue-100 rounded text-blue-800">
-                    <p className="font-bold">Today's Slots (Date: {new Date().toISOString().split('T')[0]})</p>
-                    <p>Total: {slots.total} | Booked: {slots.booked} | Remaining: {slots.remaining}</p>
+            <div className="mb-6 p-4 bg-blue-100 rounded text-blue-800 flex items-center gap-4">
+                <div>
+                    <label className="font-bold block text-sm">Calendar Date:</label>
+                    <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="p-2 border rounded" />
                 </div>
-            )}
+                {slots && (
+                    <div className="mt-4">
+                        <p>Total Capacity: {slots.total} | Booked: {slots.booked} | Remaining: {slots.remaining}</p>
+                    </div>
+                )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
@@ -259,6 +332,7 @@ const VendorDashboard = () => {
                                         <div className="mt-2 flex gap-2">
                                             <button onClick={() => updateBooking(b.id, 'accepted')} className="bg-green-500 text-white px-2 py-1 rounded text-sm">Accept</button>
                                             <button onClick={() => updateBooking(b.id, 'rejected')} className="bg-red-500 text-white px-2 py-1 rounded text-sm">Reject</button>
+                                            <button onClick={() => modifyBookingTime(b.id)} className="bg-yellow-500 text-white px-2 py-1 rounded text-sm">Propose New Time</button>
                                         </div>
                                     )}
                                 </li>
