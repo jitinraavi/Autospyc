@@ -75,6 +75,7 @@ const Register = ({ setAuth }: any) => {
 // --- CUSTOMER DASHBOARD ---
 const CustomerDashboard = () => {
     const [search, setSearch] = useState('');
+    const [vtype, setVtype] = useState('both');
     const [services, setServices] = useState<any[]>([]);
     const [bookings, setBookings] = useState<any[]>([]);
 
@@ -92,7 +93,7 @@ const CustomerDashboard = () => {
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const res = await axios.get(`${API_URL}/search?q=${search}`, {
+            const res = await axios.get(`${API_URL}/search?q=${search}&vtype=${vtype}`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
             setServices(res.data);
@@ -128,6 +129,11 @@ const CustomerDashboard = () => {
             <div className="mb-8 bg-white p-6 rounded shadow">
                 <h2 className="text-xl font-bold mb-4">Find a Service</h2>
                 <form onSubmit={handleSearch} className="flex gap-4">
+                    <select className="p-2 border rounded" value={vtype} onChange={e => setVtype(e.target.value)}>
+                        <option value="both">Any Vehicle</option>
+                        <option value="2-wheeler">2-Wheeler</option>
+                        <option value="4-wheeler">4-Wheeler</option>
+                    </select>
                     <input type="text" placeholder="Search services (e.g., Oil Change, Brake Fix)" className="flex-1 p-2 border rounded" value={search} onChange={e => setSearch(e.target.value)} />
                     <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">Search</button>
                 </form>
@@ -135,7 +141,7 @@ const CustomerDashboard = () => {
                     {services.map(s => (
                         <div key={s.id} className="border p-4 rounded flex justify-between items-center">
                             <div>
-                                <h3 className="font-bold text-lg">{s.name}</h3>
+                                <h3 className="font-bold text-lg">{s.name} ({s.vehicle_type || 'both'})</h3>
                                 <p className="text-sm text-gray-600">{s.description}</p>
                                 <p className="text-sm font-semibold mt-2">Workshop: {s.vendor_name}</p>
                                 <p className="text-sm">Price: ${s.price} | Time: {s.time_taken_minutes} mins</p>
@@ -228,13 +234,18 @@ const VendorDashboard = () => {
                             <input type="text" placeholder="Service Name" className="border p-2" value={newService.name} onChange={e => setNewService({...newService, name: e.target.value})} required />
                             <input type="text" placeholder="Description" className="border p-2" value={newService.description} onChange={e => setNewService({...newService, description: e.target.value})} />
                             <div className="flex gap-2">
-                                <input type="number" placeholder="Price" className="border p-2 w-1/2" value={newService.price} onChange={e => setNewService({...newService, price: parseFloat(e.target.value)})} required />
-                                <input type="number" placeholder="Time (mins)" className="border p-2 w-1/2" value={newService.time_taken_minutes} onChange={e => setNewService({...newService, time_taken_minutes: parseInt(e.target.value)})} required />
+                                <input type="number" placeholder="Price" className="border p-2 w-1/3" value={newService.price} onChange={e => setNewService({...newService, price: parseFloat(e.target.value)})} required />
+                                <input type="number" placeholder="Time (mins)" className="border p-2 w-1/3" value={newService.time_taken_minutes} onChange={e => setNewService({...newService, time_taken_minutes: parseInt(e.target.value)})} required />
+                                <select className="border p-2 w-1/3" value={(newService as any).vehicle_type || 'both'} onChange={e => setNewService({...newService, vehicle_type: e.target.value} as any)}>
+                                    <option value="both">Both</option>
+                                    <option value="2-wheeler">2-Wheeler</option>
+                                    <option value="4-wheeler">4-Wheeler</option>
+                                </select>
                             </div>
                             <button className="bg-blue-500 text-white p-2 rounded">Add Service</button>
                         </form>
                         <ul>
-                            {services.map(s => <li key={s.id} className="border-b py-1">{s.name} - ${s.price} ({s.time_taken_minutes}m)</li>)}
+                            {services.map(s => <li key={s.id} className="border-b py-1">{s.name} ({s.vehicle_type || 'both'}) - ${s.price} ({s.time_taken_minutes}m)</li>)}
                         </ul>
                     </div>
 
@@ -320,14 +331,19 @@ const DistributorDashboard = () => {
                         <input type="text" placeholder="Part Name" className="border p-2" value={newPart.name} onChange={e => setNewPart({...newPart, name: e.target.value})} required />
                         <input type="text" placeholder="Description" className="border p-2" value={newPart.description} onChange={e => setNewPart({...newPart, description: e.target.value})} />
                         <div className="flex gap-2">
-                            <input type="number" placeholder="Price" className="border p-2 w-1/3" value={newPart.price} onChange={e => setNewPart({...newPart, price: parseFloat(e.target.value)})} required />
-                            <input type="number" placeholder="Min Order" className="border p-2 w-1/3" value={newPart.min_order_req} onChange={e => setNewPart({...newPart, min_order_req: parseInt(e.target.value)})} required />
-                            <input type="number" placeholder="Delivery (Days)" className="border p-2 w-1/3" value={newPart.delivery_time_days} onChange={e => setNewPart({...newPart, delivery_time_days: parseInt(e.target.value)})} required />
+                            <input type="number" placeholder="Price" className="border p-2 w-1/4" value={newPart.price} onChange={e => setNewPart({...newPart, price: parseFloat(e.target.value)})} required />
+                            <input type="number" placeholder="Min Order" className="border p-2 w-1/4" value={newPart.min_order_req} onChange={e => setNewPart({...newPart, min_order_req: parseInt(e.target.value)})} required />
+                            <input type="number" placeholder="Delivery (Days)" className="border p-2 w-1/4" value={newPart.delivery_time_days} onChange={e => setNewPart({...newPart, delivery_time_days: parseInt(e.target.value)})} required />
+                            <select className="border p-2 w-1/4" value={(newPart as any).vehicle_type || 'both'} onChange={e => setNewPart({...newPart, vehicle_type: e.target.value} as any)}>
+                                <option value="both">Both</option>
+                                <option value="2-wheeler">2-Wheeler</option>
+                                <option value="4-wheeler">4-Wheeler</option>
+                            </select>
                         </div>
                         <button className="bg-purple-500 text-white p-2 rounded">Add Part</button>
                     </form>
                     <ul>
-                        {parts.map(p => <li key={p.id} className="border-b py-1">{p.name} - ${p.price}</li>)}
+                        {parts.map(p => <li key={p.id} className="border-b py-1">{p.name} ({p.vehicle_type || 'both'}) - ${p.price}</li>)}
                     </ul>
                 </div>
 

@@ -34,6 +34,7 @@ function initDb() {
             description TEXT,
             price REAL NOT NULL,
             time_taken_minutes INTEGER NOT NULL,
+            vehicle_type TEXT,
             FOREIGN KEY(vendor_id) REFERENCES users(id)
         )`);
 
@@ -60,6 +61,7 @@ function initDb() {
             price REAL NOT NULL,
             min_order_req INTEGER NOT NULL DEFAULT 1,
             delivery_time_days INTEGER NOT NULL,
+            vehicle_type TEXT,
             FOREIGN KEY(distributor_id) REFERENCES users(id)
         )`);
 

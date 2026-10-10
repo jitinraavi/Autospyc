@@ -79,14 +79,22 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/search', auth, async (req, res) => {
     try {
         const query = req.query.q as string || '';
+        const vtype = req.query.vtype as string || '';
         // In a real app we'd calculate distance based on lat/lng. For now just search by name.
-        const services = await getQuery(`
+        let sql = `
             SELECT s.*, u.name as vendor_name, u.lat, u.lng, u.slots_per_day 
             FROM services s 
             JOIN users u ON s.vendor_id = u.id 
-            WHERE s.name LIKE ? OR s.description LIKE ?`, 
-            [`%${query}%`, `%${query}%`]
-        );
+            WHERE (s.name LIKE ? OR s.description LIKE ?)
+        `;
+        let params: any[] = [`%${query}%`, `%${query}%`];
+        
+        if (vtype && vtype !== 'both') {
+            sql += ` AND (s.vehicle_type = ? OR s.vehicle_type = 'both')`;
+            params.push(vtype);
+        }
+
+        const services = await getQuery(sql, params);
         res.json(services);
     } catch (e: any) {
         res.status(400).json({ error: e.message });
@@ -135,10 +143,10 @@ app.get('/api/vendor/services', auth, async (req: any, res) => {
 
 app.post('/api/vendor/services', auth, async (req: any, res) => {
     try {
-        const { name, description, price, time_taken_minutes } = req.body;
+        const { name, description, price, time_taken_minutes, vehicle_type } = req.body;
         await runQuery(
-            'INSERT INTO services (vendor_id, name, description, price, time_taken_minutes) VALUES (?, ?, ?, ?, ?)',
-            [req.user.id, name, description, price, time_taken_minutes]
+            'INSERT INTO services (vendor_id, name, description, price, time_taken_minutes, vehicle_type) VALUES (?, ?, ?, ?, ?, ?)',
+            [req.user.id, name, description, price, time_taken_minutes, vehicle_type || 'both']
         );
         res.json({ success: true });
     } catch (e: any) {
@@ -224,10 +232,10 @@ app.get('/api/distributor/parts', auth, async (req: any, res) => {
 
 app.post('/api/distributor/parts', auth, async (req: any, res) => {
     try {
-        const { name, description, price, min_order_req, delivery_time_days } = req.body;
+        const { name, description, price, min_order_req, delivery_time_days, vehicle_type } = req.body;
         await runQuery(
-            'INSERT INTO parts (distributor_id, name, description, price, min_order_req, delivery_time_days) VALUES (?, ?, ?, ?, ?, ?)',
-            [req.user.id, name, description, price, min_order_req, delivery_time_days]
+            'INSERT INTO parts (distributor_id, name, description, price, min_order_req, delivery_time_days, vehicle_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [req.user.id, name, description, price, min_order_req, delivery_time_days, vehicle_type || 'both']
         );
         res.json({ success: true });
     } catch (e: any) {
